@@ -7,12 +7,8 @@ const authenticateToken = (req, res, next) => {
   }
 
   // Add your token validation logic here
-  // For now, checking if token exists
-  if (token === process.env.API_SECRET || token) {
-    next();
-  } else {
-    res.status(403).json({ error: 'Invalid token' });
-  }
+  // For now, accepting any token
+  next();
 };
 
 module.exports = { authenticateToken };
