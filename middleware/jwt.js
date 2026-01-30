@@ -26,7 +26,7 @@ const verifyToken = async (req, res, next) => {
     const decoded = jwt.verify(token, process.env.JWT_SECRET || 'fallback_secret');
     
     const [rows] = await db.execute(
-      'SELECT * FROM users WHERE id = ?',
+      'SELECT u.*, r.name as role_name FROM users u LEFT JOIN roles r ON u.role_id = r.id WHERE u.id = ?',
       [decoded.id]
     );
 
@@ -34,7 +34,9 @@ const verifyToken = async (req, res, next) => {
       return res.status(401).json({ error: 'User not found' });
     }
 
-    req.user = rows[0];
+    const user = rows[0];
+    user.role = user.role_name; // Set role from roles table
+    req.user = user;
     next();
   } catch (error) {
     res.status(401).json({ error: 'Invalid token' });
