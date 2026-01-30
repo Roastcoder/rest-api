@@ -9,7 +9,7 @@ const validateApiKey = async (req, res, next) => {
     }
     
     const [rows] = await db.execute(
-      'SELECT * FROM api_keys WHERE api_key = ? AND is_active = 1',
+      'SELECT ak.*, u.role_id, r.name as role_name FROM api_keys ak LEFT JOIN users u ON ak.created_by = u.id LEFT JOIN roles r ON u.role_id = r.id WHERE ak.api_key = ? AND ak.is_active = 1',
       [apiKey]
     );
 
@@ -18,6 +18,11 @@ const validateApiKey = async (req, res, next) => {
     }
 
     req.apiKey = rows[0];
+    req.user = {
+      id: rows[0].created_by,
+      role: rows[0].role_name,
+      user_type: rows[0].role_name
+    };
     next();
   } catch (error) {
     res.status(500).json({ error: 'API key validation failed' });
