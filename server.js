@@ -1,6 +1,12 @@
 const express = require('express');
-const cors = require('cors');
 require('dotenv').config();
+
+const { validateApiKey } = require('./middleware/apiKey');
+const { verifyToken, login } = require('./middleware/jwt');
+const { checkRole, ROLES } = require('./middleware/roles');
+const rateLimits = require('./middleware/rateLimiter');
+const { auditLog } = require('./middleware/logger');
+const securityConfig = require('./middleware/security');
 
 const userRoutes = require('./routes/users');
 const leadRoutes = require('./routes/leads');
@@ -24,36 +30,53 @@ const payoutLedgerRoutes = require('./routes/payoutLedger');
 const payoutSettingRoutes = require('./routes/payoutSettings');
 const referralExtendedRoutes = require('./routes/referralExtended');
 const miscRoutes = require('./routes/misc');
+const { authenticateToken } = require('./middleware/auth');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-app.use(cors());
-app.use(express.json());
+// Security middleware
+app.use(securityConfig.helmet);
+app.use(securityConfig.cors);
+app.use(express.json({ limit: '10mb' }));
+app.use(rateLimits.general);
+app.use(auditLog);
+app.use(securityConfig.blockBrowserAccess);
 
-// Routes
-app.use('/api/users', userRoutes);
-app.use('/api/leads', leadRoutes);
-app.use('/api/products', productRoutes);
-app.use('/api/payouts', payoutRoutes);
-app.use('/api/referrals', referralRoutes);
-app.use('/api/aadhaar-verifications', aadhaarVerificationRoutes);
-app.use('/api/pan-verifications', panVerificationRoutes);
-app.use('/api/bank-verifications', bankVerificationRoutes);
-app.use('/api/kyc-submissions', kycSubmissionRoutes);
-app.use('/api/roles', roleRoutes);
-app.use('/api/withdrawal-requests', withdrawalRequestRoutes);
-app.use('/api/notices', noticeRoutes);
-app.use('/api/settings', settingRoutes);
-app.use('/api/api-keys', apiKeyRoutes);
-app.use('/api/permissions', permissionRoutes);
-app.use('/api/user-permissions', userPermissionRoutes);
-app.use('/api/role-permissions', rolePermissionRoutes);
-app.use('/api/lead-status-history', leadStatusHistoryRoutes);
-app.use('/api/payout-ledger', payoutLedgerRoutes);
-app.use('/api/payout-settings', payoutSettingRoutes);
-app.use('/api/referral-extended', referralExtendedRoutes);
-app.use('/api/misc', miscRoutes);
+// Auth routes
+app.post('/api/auth/login', rateLimits.auth, login);
+
+// API routes with dual auth (API key OR JWT)
+const dualAuth = (req, res, next) => {
+  if (req.headers['x-api-key']) {
+    return validateApiKey(req, res, next);
+  }
+  return verifyToken(req, res, next);
+};
+
+// Protected routes
+app.use('/api/users', dualAuth, checkRole([ROLES.ADMIN, ROLES.MANAGER]), userRoutes);
+app.use('/api/leads', dualAuth, leadRoutes);
+app.use('/api/products', dualAuth, productRoutes);
+app.use('/api/payouts', dualAuth, checkRole([ROLES.ADMIN, ROLES.MANAGER]), payoutRoutes);
+app.use('/api/referrals', dualAuth, referralRoutes);
+app.use('/api/aadhaar-verifications', dualAuth, aadhaarVerificationRoutes);
+app.use('/api/pan-verifications', dualAuth, panVerificationRoutes);
+app.use('/api/bank-verifications', dualAuth, bankVerificationRoutes);
+app.use('/api/kyc-submissions', dualAuth, rateLimits.kyc, kycSubmissionRoutes);
+app.use('/api/roles', dualAuth, checkRole([ROLES.ADMIN]), roleRoutes);
+app.use('/api/withdrawal-requests', dualAuth, withdrawalRequestRoutes);
+app.use('/api/notices', dualAuth, noticeRoutes);
+app.use('/api/settings', dualAuth, checkRole([ROLES.ADMIN]), settingRoutes);
+app.use('/api/api-keys', dualAuth, checkRole([ROLES.ADMIN]), apiKeyRoutes);
+app.use('/api/permissions', dualAuth, checkRole([ROLES.ADMIN]), permissionRoutes);
+app.use('/api/user-permissions', dualAuth, checkRole([ROLES.ADMIN, ROLES.MANAGER]), userPermissionRoutes);
+app.use('/api/role-permissions', dualAuth, checkRole([ROLES.ADMIN]), rolePermissionRoutes);
+app.use('/api/lead-status-history', dualAuth, leadStatusHistoryRoutes);
+app.use('/api/payout-ledger', dualAuth, payoutLedgerRoutes);
+app.use('/api/payout-settings', dualAuth, checkRole([ROLES.ADMIN, ROLES.MANAGER]), payoutSettingRoutes);
+app.use('/api/referral-extended', dualAuth, referralExtendedRoutes);
+app.use('/api/misc', dualAuth, miscRoutes);
 
 app.get('/', (req, res) => {
   res.json({ 
