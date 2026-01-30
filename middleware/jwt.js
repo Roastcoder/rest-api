@@ -1,6 +1,6 @@
 const jwt = require('jsonwebtoken');
 const db = require('../config/database');
-const crypto = require('crypto');
+const bcrypt = require('bcryptjs');
 
 const generateToken = (user) => {
   return jwt.sign(
@@ -56,8 +56,10 @@ const login = async (req, res) => {
 
     const user = rows[0];
     
-    // Simple password check (replace with proper hashing in production)
-    if (password !== user.password) {
+    // Check bcrypt password (handles both $2y$ and $2a$ formats)
+    const isValidPassword = await bcrypt.compare(password, user.password);
+    
+    if (!isValidPassword) {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
