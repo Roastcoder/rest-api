@@ -1,23 +1,20 @@
 const db = require('../config/database');
-const crypto = require('crypto');
 
 const validateApiKey = async (req, res, next) => {
   try {
-    const apiKey = req.headers['x-api-key'];
+    const apiKey = req.headers['x-api-key'] || req.headers['authorization']?.replace('Bearer ', '');
     
     if (!apiKey) {
       return res.status(401).json({ error: 'API key required' });
     }
-
-    const hashedKey = crypto.createHash('sha256').update(apiKey).digest('hex');
     
     const [rows] = await db.execute(
-      'SELECT * FROM api_keys WHERE key_hash = ? AND is_active = 1 AND expires_at > NOW()',
-      [hashedKey]
+      'SELECT * FROM api_keys WHERE api_key = ? AND is_active = 1',
+      [apiKey]
     );
 
     if (rows.length === 0) {
-      return res.status(401).json({ error: 'Invalid or expired API key' });
+      return res.status(401).json({ error: 'Invalid API key' });
     }
 
     req.apiKey = rows[0];
