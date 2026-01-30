@@ -1,4 +1,3 @@
-const winston = require('winston');
 const db = require('../config/database');
 
 const logger = {
