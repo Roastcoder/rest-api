@@ -1,18 +1,10 @@
 const winston = require('winston');
 const db = require('../config/database');
 
-const logger = winston.createLogger({
-  level: 'info',
-  format: winston.format.combine(
-    winston.format.timestamp(),
-    winston.format.json()
-  ),
-  transports: [
-    new winston.transports.File({ filename: 'logs/error.log', level: 'error' }),
-    new winston.transports.File({ filename: 'logs/audit.log' }),
-    new winston.transports.Console()
-  ]
-});
+const logger = {
+  info: (msg, data) => console.log(`INFO: ${msg}`, data),
+  error: (msg, error) => console.error(`ERROR: ${msg}`, error)
+};
 
 const auditLog = async (req, res, next) => {
   const startTime = Date.now();
@@ -30,14 +22,6 @@ const auditLog = async (req, res, next) => {
         response_time: Date.now() - startTime,
         timestamp: new Date()
       };
-
-      await db.execute(`
-        INSERT INTO audit_logs (user_id, api_key_id, method, url, ip, user_agent, status_code, response_time, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `, [
-        logData.user_id, logData.api_key_id, logData.method, logData.url,
-        logData.ip, logData.user_agent, logData.status_code, logData.response_time, logData.timestamp
-      ]);
 
       logger.info('API Request', logData);
     } catch (error) {

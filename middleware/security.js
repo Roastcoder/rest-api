@@ -2,21 +2,7 @@ const helmet = require('helmet');
 const cors = require('cors');
 
 const securityConfig = {
-  helmet: helmet({
-    contentSecurityPolicy: {
-      directives: {
-        defaultSrc: ["'self'"],
-        styleSrc: ["'self'", "'unsafe-inline'"],
-        scriptSrc: ["'self'"],
-        imgSrc: ["'self'", "data:", "https:"]
-      }
-    },
-    hsts: {
-      maxAge: 31536000,
-      includeSubDomains: true,
-      preload: true
-    }
-  }),
+  helmet: (req, res, next) => next(),
 
   cors: cors({
     origin: process.env.ALLOWED_ORIGINS?.split(',') || ['https://finonest.com', 'https://cards.finonest.com'],

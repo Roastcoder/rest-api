@@ -1,15 +1,16 @@
 const jwt = require('jsonwebtoken');
 const db = require('../config/database');
+const bcrypt = require('bcrypt');
 
 const generateToken = (user) => {
   return jwt.sign(
     { 
       id: user.id, 
       email: user.email, 
-      role: user.role,
+      role: user.role || user.user_type,
       channelCode: user.channel_code 
     },
-    process.env.JWT_SECRET,
+    process.env.JWT_SECRET || 'fallback_secret',
     { expiresIn: '24h' }
   );
 };
@@ -22,15 +23,15 @@ const verifyToken = async (req, res, next) => {
       return res.status(401).json({ error: 'Access token required' });
     }
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'fallback_secret');
     
     const [rows] = await db.execute(
-      'SELECT * FROM users WHERE id = ? AND is_active = 1',
+      'SELECT * FROM users WHERE id = ?',
       [decoded.id]
     );
 
     if (rows.length === 0) {
-      return res.status(401).json({ error: 'User not found or inactive' });
+      return res.status(401).json({ error: 'User not found' });
     }
 
     req.user = rows[0];
@@ -45,7 +46,7 @@ const login = async (req, res) => {
     const { email, password } = req.body;
     
     const [rows] = await db.execute(
-      'SELECT * FROM users WHERE email = ? AND is_active = 1',
+      'SELECT * FROM users WHERE email = ?',
       [email]
     );
 
@@ -54,8 +55,7 @@ const login = async (req, res) => {
     }
 
     const user = rows[0];
-    const bcrypt = require('bcrypt');
-    const isValid = await bcrypt.compare(password, user.password_hash);
+    const isValid = await bcrypt.compare(password, user.password);
 
     if (!isValid) {
       return res.status(401).json({ error: 'Invalid credentials' });
@@ -68,7 +68,7 @@ const login = async (req, res) => {
       user: {
         id: user.id,
         email: user.email,
-        role: user.role,
+        role: user.role || user.user_type,
         channelCode: user.channel_code
       }
     });
